@@ -1,0 +1,14 @@
+# Bot de Telegram para DANTE
+python-telegram-bot==21.3
+anthropic==0.25.0
+python-dotenv==1.0.0
+
+# Reconocimiento de voz
+SpeechRecognition==3.10.1
+pydub==0.25.1
+
+# Utilidades
+requests==2.31.0
+
+# Para producción (Railway, Render, etc.)
+gunicorn==21.2.0

@@ -1,0 +1,55 @@
+# Variables de entorno (CONFIDENCIAL)
+.env
+.env.local
+.env.*.local
+
+# Archivos de Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de audio
+*.oga
+*.wav
+*.mp3
+voice_*.oga
+
+# Logs
+*.log
+logs/
+
+# Temporal
+.tmp/
+temp/
+*.bak

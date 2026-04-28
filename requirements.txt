@@ -1,5 +1,5 @@
 python-telegram-bot==20.0
-anthropic==0.13.0
+anthropic==0.24.0
 python-dotenv==1.0.0
 SpeechRecognition==3.10.1
 pydub==0.25.1

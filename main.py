@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-DANTE Bot - Asistente inmobiliario por Telegram (CON COMANDO /briefing)
-Versión con Groq (100% gratis)
+DANTE Bot - Asistente inmobiliario por Telegram (OPCIÓN 2)
+Comando /briefing → invoca scheduled task desde Cowork
 """
 
 import os
@@ -60,20 +60,6 @@ Cuando recibas un mensaje de voz transcrito de Sergio:
 
 Firma tus respuestas como "DANTE" al final."""
 
-DANTE_BRIEFING_PROMPT = """Eres DANTE. Sergio pide un briefing rápido AHORA.
-
-Genera un mini-briefing express (máx 500 caracteres) con:
-1. Hora actual Madrid
-2. Estado mercado hoy (si lo sabes): Euríbor, tendencia
-3. Recomendación del día (1 frase)
-4. Próximo paso
-
-Formato corto y directo. Cierra: "A sus órdenes, señor."
-
-NOTA IMPORTANTE: Este es un briefing rápido. Para un briefing COMPLETO con tus datos reales
-(Gmail, Calendar, Tasks, Mercado), ejecuta la scheduled task desde Cowork:
-Scheduled tasks → dante-briefing-diario → Run now"""
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /start"""
     user_id = update.effective_user.id
@@ -87,7 +73,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Hola, soy DANTE, tu asistente de IA para gestión inmobiliaria.
 
 Puedo ayudarte con:
-✅ Briefing diario (`/briefing`)
+✅ Briefing con tus datos reales (`/briefing`)
 ✅ Cualificación de leads
 ✅ Redacción de correos
 ✅ Análisis de mercado
@@ -97,46 +83,45 @@ Envíame un **mensaje de texto** o **nota de voz** 🎤 y responderé. 📝
 **Comandos:**
 /start - Reiniciar
 /help - Ayuda
-/briefing - Briefing rápido
+/briefing - Briefing con tus datos reales
 /clear - Limpiar historial"""
 
     await update.message.reply_text(message, parse_mode='Markdown')
     logger.info(f"Usuario {user_id} inició conversación")
 
 async def briefing_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /briefing - generar briefing rápido"""
+    """Comando /briefing - ejecutar scheduled task desde Cowork"""
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
     logger.info(f"📞 CHAT_ID={chat_id}")
     logger.info(f"[Usuario {user_id}] 📋 /briefing solicitado")
 
-    # Notificar que está generando
-    await update.message.reply_text("📋 Generando briefing rápido... 🔄")
+    # Respuesta inicial
+    initial_message = """📋 **DANTE — Briefing con tus datos REALES**
 
-    try:
-        # Generar briefing rápido
-        messages = [
-            {"role": "system", "content": DANTE_BRIEFING_PROMPT}
-        ]
+Ejecutando ahora desde Cowork (3-5 minutos)...
 
-        response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
-            messages=messages,
-            max_tokens=512,
-            temperature=0.7
-        )
+**Pasos:**
+1. Abre **Cowork** en tu ordenador
+2. Barra lateral → **Scheduled tasks**
+3. Busca **dante-briefing-diario**
+4. Click en **Run now** ▶️
 
-        briefing = response.choices[0].message.content
+⏳ Una vez ejecutada, recibirás el briefing aquí en Telegram con:
+✅ Tu Gmail (correos urgentes reales)
+✅ Tu Calendar (agenda de hoy)
+✅ Tu Tasks (tareas de hoy)
+✅ Mercado actual (Euríbor, DAX, precios)
+✅ Idea redes + jugada del día
 
-        logger.info(f"[Briefing generado]: {briefing[:50]}...")
+¿Ya ejecutaste? Recibirás el briefing en 3-5 minutos.
 
-        # Enviar briefing
-        await update.message.reply_text(briefing, parse_mode='Markdown')
+A sus órdenes, señor."""
 
-    except Exception as e:
-        logger.error(f"❌ Error generando briefing: {e}")
-        await update.message.reply_text(f"❌ Error: {str(e)}")
+    await update.message.reply_text(initial_message, parse_mode='Markdown')
+
+    logger.info(f"Instrucciones de /briefing enviadas al usuario {user_id}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manejar mensajes de texto"""
@@ -300,22 +285,22 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📚 **Comandos disponibles:**
 /start - Reiniciar conversación
 /help - Mostrar esta ayuda
-/briefing - Generar briefing rápido
+/briefing - Briefing con tus datos reales (desde Cowork)
 /clear - Limpiar historial
 
-💬 **Cómo usar:**
-• **Mensajes de texto** — escribe tu pregunta o comando
-• **Mensajes de voz** 🎤 — presiona el botón de micrófono y habla
-• DANTE transcribe y responde en segundos
+💬 **Cómo usar DANTE:**
+• **Mensajes de texto** — escribe tu pregunta
+• **Mensajes de voz** 🎤 — presiona micrófono y habla
+• DANTE transcribe y responde en 5-10 segundos
 
-📝 Ejemplos:
-"Califica este lead"
-"Redacta un correo a..."
+📝 **Ejemplos:**
+"Califica a este vendedor"
+"Redacta un correo para..."
 "A qué precio debo poner este piso"
-"Mercado hoy"
+"Cómo cierro esta venta"
 
-📋 **Para briefing completo** (con tus datos reales):
-Cowork → Scheduled tasks → dante-briefing-diario → Run now
+📋 **Para briefing con TUS DATOS REALES:**
+Escribe `/briefing` → te doy instrucciones paso a paso
 """
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
@@ -328,7 +313,7 @@ async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Iniciar el bot"""
-    logger.info("🚀 Iniciando DANTE Bot con comando /briefing...")
+    logger.info("🚀 Iniciando DANTE Bot (Opción 2: Briefing desde Cowork)...")
 
     # Crear aplicación
     app = Application.builder().token(TELEGRAM_TOKEN).build()
@@ -343,7 +328,7 @@ def main():
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))  # Voz PRIMERO
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))  # Texto después
 
-    logger.info("✅ Bot iniciado. Esperando mensajes (texto + voz + comandos)...")
+    logger.info("✅ Bot iniciado. Esperando mensajes...")
 
     # Iniciar el bot
     app.run_polling()

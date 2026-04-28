@@ -63,7 +63,11 @@ Firma tus respuestas como "DANTE" al final."""
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /start"""
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
     conversations[user_id] = []
+
+    # LOG: Capturar chat_id
+    logger.info(f"📞 CHAT_ID={chat_id} (Usuario: {user_id}) — /start recibido")
 
     message = """🤖 **DANTE - Asistente Inmobiliario**
 
@@ -83,6 +87,7 @@ Envíame un mensaje de voz o texto y responderé. 🎤📝"""
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manejar mensajes de usuario"""
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
 
     # Obtener texto del mensaje
     text = update.message.text
@@ -90,6 +95,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ No entendí tu mensaje. Intenta de nuevo.")
         return
 
+    # LOG IMPORTANTE: Imprimir chat_id para configuración Telegram
+    logger.info(f"📞 CHAT_ID={chat_id}")
     logger.info(f"[Usuario {user_id}]: {text}")
 
     # Inicializar conversación del usuario si no existe

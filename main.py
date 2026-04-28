@@ -103,11 +103,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
 
     try:
+        # Preparar mensajes con system al inicio (formato correcto para Groq)
+        messages = [
+            {"role": "system", "content": DANTE_SYSTEM_PROMPT},
+            *conversations[user_id]
+        ]
+
         # Llamar a Groq
         response = client.chat.completions.create(
             model="mixtral-8x7b-32768",
-            messages=conversations[user_id],
-            system=DANTE_SYSTEM_PROMPT,
+            messages=messages,
             max_tokens=1024,
             temperature=0.7
         )

@@ -109,9 +109,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             *conversations[user_id]
         ]
 
-        # Llamar a Groq
+        # Llamar a Groq con modelo actual disponible
         response = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=messages,
             max_tokens=1024,
             temperature=0.7

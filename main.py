@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DANTE Bot - Asistente inmobiliario por Telegram (CON SOPORTE DE VOZ)
+DANTE Bot - Asistente inmobiliario por Telegram (CON COMANDO /briefing)
 Versión con Groq (100% gratis)
 """
 
@@ -60,13 +60,26 @@ Cuando recibas un mensaje de voz transcrito de Sergio:
 
 Firma tus respuestas como "DANTE" al final."""
 
+DANTE_BRIEFING_PROMPT = """Eres DANTE. Sergio pide un briefing rápido AHORA.
+
+Genera un mini-briefing express (máx 500 caracteres) con:
+1. Hora actual Madrid
+2. Estado mercado hoy (si lo sabes): Euríbor, tendencia
+3. Recomendación del día (1 frase)
+4. Próximo paso
+
+Formato corto y directo. Cierra: "A sus órdenes, señor."
+
+NOTA IMPORTANTE: Este es un briefing rápido. Para un briefing COMPLETO con tus datos reales
+(Gmail, Calendar, Tasks, Mercado), ejecuta la scheduled task desde Cowork:
+Scheduled tasks → dante-briefing-diario → Run now"""
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /start"""
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     conversations[user_id] = []
 
-    # LOG: Capturar chat_id
     logger.info(f"📞 CHAT_ID={chat_id} (Usuario: {user_id}) — /start recibido")
 
     message = """🤖 **DANTE - Asistente Inmobiliario**
@@ -74,15 +87,56 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 Hola, soy DANTE, tu asistente de IA para gestión inmobiliaria.
 
 Puedo ayudarte con:
-✅ Briefing diario
+✅ Briefing diario (`/briefing`)
 ✅ Cualificación de leads
 ✅ Redacción de correos
 ✅ Análisis de mercado
 
-Envíame un **mensaje de texto** o **nota de voz** 🎤 y responderé. 📝"""
+Envíame un **mensaje de texto** o **nota de voz** 🎤 y responderé. 📝
+
+**Comandos:**
+/start - Reiniciar
+/help - Ayuda
+/briefing - Briefing rápido
+/clear - Limpiar historial"""
 
     await update.message.reply_text(message, parse_mode='Markdown')
     logger.info(f"Usuario {user_id} inició conversación")
+
+async def briefing_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Comando /briefing - generar briefing rápido"""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    logger.info(f"📞 CHAT_ID={chat_id}")
+    logger.info(f"[Usuario {user_id}] 📋 /briefing solicitado")
+
+    # Notificar que está generando
+    await update.message.reply_text("📋 Generando briefing rápido... 🔄")
+
+    try:
+        # Generar briefing rápido
+        messages = [
+            {"role": "system", "content": DANTE_BRIEFING_PROMPT}
+        ]
+
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=messages,
+            max_tokens=512,
+            temperature=0.7
+        )
+
+        briefing = response.choices[0].message.content
+
+        logger.info(f"[Briefing generado]: {briefing[:50]}...")
+
+        # Enviar briefing
+        await update.message.reply_text(briefing, parse_mode='Markdown')
+
+    except Exception as e:
+        logger.error(f"❌ Error generando briefing: {e}")
+        await update.message.reply_text(f"❌ Error: {str(e)}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manejar mensajes de texto"""
@@ -166,20 +220,19 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             import speech_recognition as sr
 
-            # Convertir OGG a WAV si es necesario
             recognizer = sr.Recognizer()
-            recognizer.energy_threshold = 4000  # Ajuste sensibilidad
+            recognizer.energy_threshold = 4000
 
             with sr.AudioFile(file_path) as source:
                 audio_data = recognizer.record(source)
 
-            # Reconocer usando Google Speech Recognition (gratis)
+            # Reconocer usando Google Speech Recognition
             text = recognizer.recognize_google(audio_data, language='es-ES')
             logger.info(f"📝 Transcripción: {text}")
 
         except sr.UnknownValueError:
             logger.error("No se entendió el audio")
-            await update.message.reply_text("❌ No entendí bien tu voz. Hablá más claro o intenta de nuevo.")
+            await update.message.reply_text("❌ No entendí bien tu voz. Habla más claro o intenta de nuevo.")
             return
         except sr.RequestError as e:
             logger.error(f"Error servicio reconocimiento: {e}")
@@ -247,6 +300,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📚 **Comandos disponibles:**
 /start - Reiniciar conversación
 /help - Mostrar esta ayuda
+/briefing - Generar briefing rápido
 /clear - Limpiar historial
 
 💬 **Cómo usar:**
@@ -257,8 +311,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📝 Ejemplos:
 "Califica este lead"
 "Redacta un correo a..."
-"Briefing rápido"
+"A qué precio debo poner este piso"
 "Mercado hoy"
+
+📋 **Para briefing completo** (con tus datos reales):
+Cowork → Scheduled tasks → dante-briefing-diario → Run now
 """
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
@@ -271,7 +328,7 @@ async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Iniciar el bot"""
-    logger.info("🚀 Iniciando DANTE Bot con soporte de VOZ...")
+    logger.info("🚀 Iniciando DANTE Bot con comando /briefing...")
 
     # Crear aplicación
     app = Application.builder().token(TELEGRAM_TOKEN).build()
@@ -279,13 +336,14 @@ def main():
     # Registrar handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("briefing", briefing_command))
     app.add_handler(CommandHandler("clear", clear_command))
 
     # Handlers para mensajes
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))  # Voz PRIMERO
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))  # Texto después
 
-    logger.info("✅ Bot iniciado. Esperando mensajes (texto + voz)...")
+    logger.info("✅ Bot iniciado. Esperando mensajes (texto + voz + comandos)...")
 
     # Iniciar el bot
     app.run_polling()

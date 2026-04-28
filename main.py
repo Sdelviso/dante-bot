@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DANTE Bot - Asistente inmobiliario por Telegram
+DANTE Bot - Asistente inmobiliario por Telegram (CON SOPORTE DE VOZ)
 Versión con Groq (100% gratis)
 """
 
@@ -79,13 +79,13 @@ Puedo ayudarte con:
 ✅ Redacción de correos
 ✅ Análisis de mercado
 
-Envíame un mensaje de voz o texto y responderé. 🎤📝"""
+Envíame un **mensaje de texto** o **nota de voz** 🎤 y responderé. 📝"""
 
     await update.message.reply_text(message, parse_mode='Markdown')
     logger.info(f"Usuario {user_id} inició conversación")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manejar mensajes de usuario"""
+    """Manejar mensajes de texto"""
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
@@ -95,9 +95,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ No entendí tu mensaje. Intenta de nuevo.")
         return
 
-    # LOG IMPORTANTE: Imprimir chat_id para configuración Telegram
+    # LOG
     logger.info(f"📞 CHAT_ID={chat_id}")
-    logger.info(f"[Usuario {user_id}]: {text}")
+    logger.info(f"[Usuario {user_id}] 📝 TEXTO: {text}")
 
     # Inicializar conversación del usuario si no existe
     if user_id not in conversations:
@@ -110,13 +110,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
 
     try:
-        # Preparar mensajes con system al inicio (formato correcto para Groq)
+        # Preparar mensajes con system al inicio
         messages = [
             {"role": "system", "content": DANTE_SYSTEM_PROMPT},
             *conversations[user_id]
         ]
 
-        # Llamar a Groq con modelo actual disponible
+        # Llamar a Groq
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=messages,
@@ -133,7 +133,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "content": assistant_message
         })
 
-        # Limitar historial a últimos 20 mensajes
+        # Limitar historial
         if len(conversations[user_id]) > 40:
             conversations[user_id] = conversations[user_id][-40:]
 
@@ -146,6 +146,101 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Error al procesar mensaje: {e}")
         await update.message.reply_text(f"❌ Error: {str(e)}")
 
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Manejar mensajes de voz"""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+
+    try:
+        # Notificar que está procesando
+        await update.message.reply_text("🎤 Escuchando... procesando tu voz 🔄")
+
+        # Descargar archivo de voz
+        voice_file = await update.message.voice.get_file()
+        file_path = f"/tmp/voice_{user_id}_{update.message.message_id}.ogg"
+        await voice_file.download_to_drive(file_path)
+
+        logger.info(f"🎤 Archivo de voz descargado: {file_path}")
+
+        # Transcribir voz a texto
+        try:
+            import speech_recognition as sr
+
+            # Convertir OGG a WAV si es necesario
+            recognizer = sr.Recognizer()
+            recognizer.energy_threshold = 4000  # Ajuste sensibilidad
+
+            with sr.AudioFile(file_path) as source:
+                audio_data = recognizer.record(source)
+
+            # Reconocer usando Google Speech Recognition (gratis)
+            text = recognizer.recognize_google(audio_data, language='es-ES')
+            logger.info(f"📝 Transcripción: {text}")
+
+        except sr.UnknownValueError:
+            logger.error("No se entendió el audio")
+            await update.message.reply_text("❌ No entendí bien tu voz. Hablá más claro o intenta de nuevo.")
+            return
+        except sr.RequestError as e:
+            logger.error(f"Error servicio reconocimiento: {e}")
+            await update.message.reply_text("❌ Error al procesar tu voz. Intenta de nuevo en un momento.")
+            return
+
+        # Inicializar conversación
+        if user_id not in conversations:
+            conversations[user_id] = []
+
+        # LOG
+        logger.info(f"📞 CHAT_ID={chat_id}")
+        logger.info(f"[Usuario {user_id}] 🎤 VOZ → TEXTO: {text}")
+
+        # Añadir al historial
+        conversations[user_id].append({
+            "role": "user",
+            "content": text
+        })
+
+        try:
+            # Preparar mensajes
+            messages = [
+                {"role": "system", "content": DANTE_SYSTEM_PROMPT},
+                *conversations[user_id]
+            ]
+
+            # Llamar a Groq
+            response = client.chat.completions.create(
+                model="llama-3.1-8b-instant",
+                messages=messages,
+                max_tokens=1024,
+                temperature=0.7
+            )
+
+            # Extraer respuesta
+            assistant_message = response.choices[0].message.content
+
+            # Añadir respuesta
+            conversations[user_id].append({
+                "role": "assistant",
+                "content": assistant_message
+            })
+
+            # Limitar historial
+            if len(conversations[user_id]) > 40:
+                conversations[user_id] = conversations[user_id][-40:]
+
+            logger.info(f"[DANTE responde]: {assistant_message[:50]}...")
+
+            # Enviar respuesta
+            await update.message.reply_text(assistant_message, parse_mode='Markdown')
+
+        except Exception as e:
+            logger.error(f"❌ Error Groq: {e}")
+            await update.message.reply_text(f"❌ Error al procesar: {str(e)}")
+
+    except Exception as e:
+        logger.error(f"❌ Error con archivo de voz: {e}")
+        await update.message.reply_text("❌ Error al descargar tu mensaje de voz.")
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /help"""
     help_text = """
@@ -154,7 +249,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /help - Mostrar esta ayuda
 /clear - Limpiar historial
 
-Simplemente envía un mensaje y DANTE responderá. 🤖
+💬 **Cómo usar:**
+• **Mensajes de texto** — escribe tu pregunta o comando
+• **Mensajes de voz** 🎤 — presiona el botón de micrófono y habla
+• DANTE transcribe y responde en segundos
+
+📝 Ejemplos:
+"Califica este lead"
+"Redacta un correo a..."
+"Briefing rápido"
+"Mercado hoy"
 """
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
@@ -167,7 +271,7 @@ async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Iniciar el bot"""
-    logger.info("🚀 Iniciando DANTE Bot (Groq)...")
+    logger.info("🚀 Iniciando DANTE Bot con soporte de VOZ...")
 
     # Crear aplicación
     app = Application.builder().token(TELEGRAM_TOKEN).build()
@@ -176,9 +280,12 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("clear", clear_command))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    logger.info("✅ Bot iniciado. Esperando mensajes...")
+    # Handlers para mensajes
+    app.add_handler(MessageHandler(filters.VOICE, handle_voice))  # Voz PRIMERO
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))  # Texto después
+
+    logger.info("✅ Bot iniciado. Esperando mensajes (texto + voz)...")
 
     # Iniciar el bot
     app.run_polling()

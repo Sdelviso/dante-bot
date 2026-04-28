@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
 DANTE Bot - Asistente inmobiliario por Telegram
-Versión simplificada sin conflictos de dependencias
+Versión con Groq (100% gratis)
 """
 
 import os
 import logging
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from anthropic import Anthropic
+from groq import Groq
 
 # Configuración de logging
 logging.basicConfig(
@@ -19,27 +19,46 @@ logger = logging.getLogger(__name__)
 
 # Variables de entorno
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Validar variables
 if not TELEGRAM_TOKEN:
     raise ValueError("❌ TELEGRAM_TOKEN no está configurado")
-if not CLAUDE_API_KEY:
-    raise ValueError("❌ CLAUDE_API_KEY no está configurado")
+if not GROQ_API_KEY:
+    raise ValueError("❌ GROQ_API_KEY no está configurado")
 
 logger.info(f"✅ Token Telegram: {TELEGRAM_TOKEN[:10]}...")
-logger.info(f"✅ Claude API Key: {CLAUDE_API_KEY[:10]}...")
+logger.info(f"✅ Groq API Key: {GROQ_API_KEY[:10]}...")
 
-# Inicializar cliente de Anthropic
+# Inicializar cliente de Groq
 try:
-    client = Anthropic(api_key=CLAUDE_API_KEY)
-    logger.info("✅ Cliente Anthropic inicializado correctamente")
+    client = Groq(api_key=GROQ_API_KEY)
+    logger.info("✅ Cliente Groq inicializado correctamente")
 except Exception as e:
-    logger.error(f"❌ Error al inicializar Anthropic: {e}")
+    logger.error(f"❌ Error al inicializar Groq: {e}")
     raise
 
 # Almacenar conversaciones por usuario
 conversations = {}
+
+# Contexto DANTE
+DANTE_SYSTEM_PROMPT = """Eres DANTE, el asistente inmobiliario virtual de Sergio Delviso, responsable comercial de una oficina inmobiliaria en Aincat con 23 años de experiencia en el sector.
+
+Tu tono es profesional, directo y confiable. Hablas en español con un registro corporativo pero accesible.
+
+Tienes estas capacidades clave:
+1. BRIEFING DIARIO: Resumir agenda, tareas, correos urgentes, leads, clima y mercado
+2. CUALIFICACIÓN DE LEADS: Evaluar calidad de demandantes y vendedores, asignar prioridad
+3. REDACCIÓN DE CORREOS: Crear correos profesionales para clientes inmobiliarios
+4. ASESORAMIENTO: Orientar en precios, negociación, tácticas de cierre
+
+Cuando recibas un mensaje de voz transcrito de Sergio:
+- Identifica la intención (¿briefing?, ¿valorar un lead?, ¿redactar correo?)
+- Responde de forma concisa y accionable
+- Si necesitas más contexto, pregunta específicamente
+- Siempre ofrece próximos pasos claros
+
+Firma tus respuestas como "DANTE" al final."""
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /start"""
@@ -83,23 +102,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "content": text
     })
 
-    # Contexto DANTE
-    system_prompt = """Eres DANTE, un asistente experto en inmobiliaria.
-Tienes más de 23 años de experiencia en el sector.
-Respondes de forma concisa, profesional y directa.
-Enfócate en soluciones prácticas para agentes inmobiliarios."""
-
     try:
-        # Llamar a Claude
-        response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+        # Llamar a Groq
+        response = client.chat.completions.create(
+            model="mixtral-8x7b-32768",
+            messages=conversations[user_id],
+            system=DANTE_SYSTEM_PROMPT,
             max_tokens=1024,
-            system=system_prompt,
-            messages=conversations[user_id]
+            temperature=0.7
         )
 
         # Extraer respuesta
-        assistant_message = response.content[0].text
+        assistant_message = response.choices[0].message.content
 
         # Añadir respuesta al historial
         conversations[user_id].append({
@@ -141,7 +155,7 @@ async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Iniciar el bot"""
-    logger.info("🚀 Iniciando DANTE Bot...")
+    logger.info("🚀 Iniciando DANTE Bot (Groq)...")
 
     # Crear aplicación
     app = Application.builder().token(TELEGRAM_TOKEN).build()
